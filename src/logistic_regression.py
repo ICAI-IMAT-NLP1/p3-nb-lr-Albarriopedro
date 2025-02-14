@@ -10,6 +10,7 @@ except ImportError:
 
 class LogisticRegression:
     def __init__(self, random_state: int):
+        torch.manual_seed(random_state)
         self._weights: torch.Tensor = None
         self.random_state: int = random_state
 
@@ -32,7 +33,23 @@ class LogisticRegression:
         Returns:
             None: The function updates the model weights in place.
         """
-        # TODO: Implement gradient-descent algorithm to optimize logistic regression weights
+        # Implement gradient-descent algorithm to optimize logistic regression weights
+        num_features = features.shape[1]
+        self._weights = self.initialize_parameters(num_features, self.random_state)
+
+        features_with_bias = torch.cat([torch.ones(features.shape[0], 1), features], dim=1)
+        labels = labels.view(-1, 1)
+
+        for epoch in range(epochs):
+            linear_model = torch.matmul(features_with_bias, self._weights)
+            predictions = self.sigmoid(linear_model)
+
+            errors = predictions - labels
+            gradients = torch.matmul(features_with_bias.T, errors) / len(labels)
+
+            with torch.no_grad():
+                self._weights -= learning_rate * gradients
+
         return
 
     def predict(self, features: torch.Tensor, cutoff: float = 0.5) -> torch.Tensor:
@@ -46,7 +63,11 @@ class LogisticRegression:
         Returns:
             torch.Tensor: Predicted class labels (0 or 1).
         """
-        decisions: torch.Tensor = None
+        features_with_bias = torch.cat([torch.ones(features.shape[0], 1), features], dim=1) 
+        linear_model = torch.matmul(features_with_bias, self._weights)  
+        probabilities = self.sigmoid(linear_model)   
+        decisions = (probabilities >= cutoff).float()  
+
         return decisions
 
     def predict_proba(self, features: torch.Tensor) -> torch.Tensor:
@@ -65,7 +86,9 @@ class LogisticRegression:
         if self.weights is None:
             raise ValueError("Model not trained. Call the 'train' method first.")
         
-        probabilities: torch.Tensor = None
+        features_with_bias = torch.cat([torch.ones(features.shape[0], 1), features], dim=1)
+        linear_model = torch.matmul(features_with_bias, self._weights)
+        probabilities: torch.Tensor = self.sigmoid(linear_model)
         
         return probabilities
 
@@ -85,7 +108,7 @@ class LogisticRegression:
         """
         torch.manual_seed(random_state)
         
-        params: torch.Tensor = None
+        params: torch.Tensor = torch.randn(dim + 1, 1) 
         
         return params
 
@@ -103,7 +126,7 @@ class LogisticRegression:
         Returns:
             torch.Tensor: The sigmoid of z.
         """
-        result: torch.Tensor = None
+        result: torch.Tensor = 1 / (1 + torch.exp(-z))
         return result
 
     @staticmethod
@@ -123,16 +146,20 @@ class LogisticRegression:
         Returns:
             torch.Tensor: The computed binary cross-entropy loss.
         """
-        ce_loss: torch.Tensor = None
+
+        epsilon = 1e-15 
+        predictions = torch.clamp(predictions, min=epsilon, max=1 - epsilon)
+        ce_loss: torch.Tensor = -torch.mean(targets * torch.log(predictions) + (1 - targets) * torch.log(1 - predictions))
+        
         return ce_loss
 
     @property
     def weights(self):
         """Get the weights of the logistic regression model."""
-        return self._weights
+        return self._weights.squeeze() 
 
     @weights.setter
     def weights(self, value):
         """Set the weights of the logistic regression model."""
-        self._weights: torch.Tensor = value
+        self._weights: torch.Tensor = value.view(-1, 1)
 
